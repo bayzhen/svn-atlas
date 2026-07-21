@@ -2,13 +2,6 @@ import * as vscode from "vscode";
 import { SvnClient } from "../core/SvnClient";
 import { BaseContentProvider, QuickDiffSettings } from "./BaseContentProvider";
 
-const ROOT_CACHE_TTL_MS = 15_000;
-
-interface RootCacheEntry {
-  readonly expiresAt: number;
-  readonly root: string | undefined;
-}
-
 /**
  * Connects the local SVN BASE provider to VS Code's gutter decorations.
  *
@@ -19,7 +12,7 @@ interface RootCacheEntry {
 export class LocalBaseQuickDiff implements vscode.Disposable {
   private readonly sourceControl: vscode.SourceControl;
   private readonly provider: BaseContentProvider;
-  private readonly rootCache = new Map<string, RootCacheEntry>();
+  private readonly workingCopyRoots = new Map<string, string>();
   private readonly workingCopyWatchers = new Map<string, vscode.Disposable>();
   private readonly subscriptions: vscode.Disposable[] = [];
 
@@ -45,7 +38,7 @@ export class LocalBaseQuickDiff implements vscode.Disposable {
     this.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration("svnAtlas")) {
-          this.rootCache.clear();
+          this.workingCopyRoots.clear();
           this.provider.clear();
           void this.refreshAll();
         }
@@ -62,7 +55,7 @@ export class LocalBaseQuickDiff implements vscode.Disposable {
   public dispose(): void {
     this.sourceControl.dispose();
     this.provider.dispose();
-    this.rootCache.clear();
+    this.workingCopyRoots.clear();
     for (const watcher of this.workingCopyWatchers.values()) {
       watcher.dispose();
     }
@@ -94,15 +87,32 @@ export class LocalBaseQuickDiff implements vscode.Disposable {
   }
 
   private async getWorkingCopyRoot(resource: vscode.Uri): Promise<string | undefined> {
-    const cacheKey = resource.toString();
-    const cached = this.rootCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.root;
+    const cached = this.findCachedWorkingCopyRoot(resource.fsPath);
+    if (cached) {
+      return cached;
     }
 
     const root = await this.svn.getWorkingCopyRoot(resource);
-    this.rootCache.set(cacheKey, { root, expiresAt: Date.now() + ROOT_CACHE_TTL_MS });
+    if (root) {
+      this.workingCopyRoots.set(normalizePath(root), root);
+    }
     return root;
+  }
+
+  private findCachedWorkingCopyRoot(filePath: string): string | undefined {
+    const normalizedFile = normalizePath(filePath);
+    let nearestRoot: string | undefined;
+
+    for (const [normalizedRoot, root] of this.workingCopyRoots) {
+      if (
+        (normalizedFile === normalizedRoot || normalizedFile.startsWith(`${normalizedRoot}/`)) &&
+        (!nearestRoot || normalizedRoot.length > normalizePath(nearestRoot).length)
+      ) {
+        nearestRoot = root;
+      }
+    }
+
+    return nearestRoot;
   }
 
   private ensureWorkingCopyWatcher(workingCopyRoot: string): void {
@@ -134,11 +144,13 @@ export class LocalBaseQuickDiff implements vscode.Disposable {
 
   private getSettings(): QuickDiffSettings {
     const configuration = vscode.workspace.getConfiguration("svnAtlas");
-    const cacheSize = configuration.get<number>("quickDiff.cacheSize", 32);
-    const maxFileSizeMB = configuration.get<number>("quickDiff.maxFileSizeMB", 5);
+    const cacheSize = configuration.get<number>("quickDiff.cacheSize", 128);
+    const maxCacheSizeMB = configuration.get<number>("quickDiff.maxCacheSizeMB", 64);
+    const maxFileSizeMB = configuration.get<number>("quickDiff.maxFileSizeMB", 16);
 
     return {
       cacheSize: Math.max(1, Math.floor(cacheSize)),
+      maxCacheSizeBytes: Math.max(1, maxCacheSizeMB) * 1024 * 1024,
       maxFileSizeBytes: maxFileSizeMB > 0 ? maxFileSizeMB * 1024 * 1024 : undefined,
     };
   }

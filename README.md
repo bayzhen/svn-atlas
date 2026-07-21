@@ -27,8 +27,9 @@ The usual VS Code source-control decoration settings control visibility:
 | --- | --- | --- |
 | `svnAtlas.executablePath` | `svn` | Path to the Subversion executable. |
 | `svnAtlas.quickDiff.enabled` | `true` | Enables local BASE gutter decorations. |
-| `svnAtlas.quickDiff.cacheSize` | `32` | Maximum cached open-file BASE contents. |
-| `svnAtlas.quickDiff.maxFileSizeMB` | `5` | Skips larger files; use `0` to disable the limit. |
+| `svnAtlas.quickDiff.cacheSize` | `128` | Maximum cached open-file BASE contents. |
+| `svnAtlas.quickDiff.maxCacheSizeMB` | `64` | Maximum combined size of cached BASE contents. |
+| `svnAtlas.quickDiff.maxFileSizeMB` | `16` | Skips larger files; use `0` to disable the limit. |
 
 ## Roadmap
 

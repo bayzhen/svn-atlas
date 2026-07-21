@@ -5,6 +5,7 @@ const BASE_SCHEME = "svn-atlas-base";
 
 export interface QuickDiffSettings {
   readonly cacheSize: number;
+  readonly maxCacheSizeBytes: number;
   readonly maxFileSizeBytes: number | undefined;
 }
 
@@ -20,8 +21,11 @@ export class BaseContentProvider implements vscode.TextDocumentContentProvider, 
 
   private readonly changeEmitter = new vscode.EventEmitter<vscode.Uri>();
   private readonly baseContents = new Map<string, string>();
+  private readonly baseContentSizes = new Map<string, number>();
+  private readonly pendingLoads = new Map<string, Promise<string | undefined>>();
   private readonly knownResources = new Map<string, vscode.Uri>();
   private readonly registration: vscode.Disposable;
+  private cachedContentBytes = 0;
 
   public readonly onDidChange = this.changeEmitter.event;
 
@@ -61,12 +65,18 @@ export class BaseContentProvider implements vscode.TextDocumentContentProvider, 
 
   public clear(): void {
     this.baseContents.clear();
+    this.baseContentSizes.clear();
+    this.cachedContentBytes = 0;
+    this.pendingLoads.clear();
   }
 
   public dispose(): void {
     this.registration.dispose();
     this.changeEmitter.dispose();
     this.baseContents.clear();
+    this.baseContentSizes.clear();
+    this.cachedContentBytes = 0;
+    this.pendingLoads.clear();
     this.knownResources.clear();
   }
 
@@ -92,6 +102,26 @@ export class BaseContentProvider implements vscode.TextDocumentContentProvider, 
       return cached;
     }
 
+    const pendingKey = forceReload ? `${cacheKey}:refresh` : cacheKey;
+    const pending = this.pendingLoads.get(pendingKey);
+    if (pending) {
+      return pending;
+    }
+
+    const load = this.loadUncached(resource, cacheKey, cached);
+    this.pendingLoads.set(pendingKey, load);
+    try {
+      return await load;
+    } finally {
+      this.pendingLoads.delete(pendingKey);
+    }
+  }
+
+  private async loadUncached(
+    resource: vscode.Uri,
+    cacheKey: string,
+    cached: string | undefined,
+  ): Promise<string | undefined> {
     if (!(await this.isEligible(resource))) {
       return undefined;
     }
@@ -127,16 +157,30 @@ export class BaseContentProvider implements vscode.TextDocumentContentProvider, 
   }
 
   private touch(cacheKey: string, content: string): void {
+    const existingContent = this.baseContents.get(cacheKey);
+    const existingSize = this.baseContentSizes.get(cacheKey);
     this.baseContents.delete(cacheKey);
     this.baseContents.set(cacheKey, content);
 
-    const cacheSize = this.getSettings().cacheSize;
-    while (this.baseContents.size > cacheSize) {
+    if (existingContent === content && existingSize !== undefined) {
+      this.baseContentSizes.delete(cacheKey);
+      this.baseContentSizes.set(cacheKey, existingSize);
+    } else {
+      this.cachedContentBytes -= existingSize ?? 0;
+      const contentSize = Buffer.byteLength(content, "utf8");
+      this.baseContentSizes.set(cacheKey, contentSize);
+      this.cachedContentBytes += contentSize;
+    }
+
+    const settings = this.getSettings();
+    while (this.baseContents.size > settings.cacheSize || this.cachedContentBytes > settings.maxCacheSizeBytes) {
       const oldestKey = this.baseContents.keys().next().value;
       if (oldestKey === undefined) {
         return;
       }
       this.baseContents.delete(oldestKey);
+      this.cachedContentBytes -= this.baseContentSizes.get(oldestKey) ?? 0;
+      this.baseContentSizes.delete(oldestKey);
     }
   }
 }
