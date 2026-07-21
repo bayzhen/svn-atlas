@@ -2,4 +2,4 @@
 .github/**
 src/**
 tsconfig.json
-*.map
+**/*.map
