@@ -31,7 +31,7 @@ export class BaseContentProvider implements vscode.TextDocumentContentProvider, 
 
   public constructor(
     private readonly svn: SvnClient,
-    private readonly getSettings: () => QuickDiffSettings,
+    private readonly getSettings: (resource: vscode.Uri) => QuickDiffSettings,
     private readonly output: vscode.OutputChannel,
   ) {
     this.registration = vscode.workspace.registerTextDocumentContentProvider(BASE_SCHEME, this);
@@ -98,7 +98,7 @@ export class BaseContentProvider implements vscode.TextDocumentContentProvider, 
     const cacheKey = resource.toString();
     const cached = this.baseContents.get(cacheKey);
     if (!forceReload && cached !== undefined) {
-      this.touch(cacheKey, cached);
+      this.touch(resource, cacheKey, cached);
       return cached;
     }
 
@@ -128,7 +128,7 @@ export class BaseContentProvider implements vscode.TextDocumentContentProvider, 
 
     try {
       const content = await this.svn.readBase(resource);
-      this.touch(cacheKey, content);
+      this.touch(resource, cacheKey, content);
       return content;
     } catch (error) {
       this.output.appendLine(`Unable to read local BASE for ${resource.fsPath}: ${formatError(error)}`);
@@ -143,7 +143,7 @@ export class BaseContentProvider implements vscode.TextDocumentContentProvider, 
         return false;
       }
 
-      const sizeLimit = this.getSettings().maxFileSizeBytes;
+      const sizeLimit = this.getSettings(resource).maxFileSizeBytes;
       if (sizeLimit !== undefined && stat.size > sizeLimit) {
         this.output.appendLine(`Skipping Quick Diff for large file: ${resource.fsPath}`);
         return false;
@@ -156,7 +156,7 @@ export class BaseContentProvider implements vscode.TextDocumentContentProvider, 
     }
   }
 
-  private touch(cacheKey: string, content: string): void {
+  private touch(resource: vscode.Uri, cacheKey: string, content: string): void {
     const existingContent = this.baseContents.get(cacheKey);
     const existingSize = this.baseContentSizes.get(cacheKey);
     this.baseContents.delete(cacheKey);
@@ -172,7 +172,7 @@ export class BaseContentProvider implements vscode.TextDocumentContentProvider, 
       this.cachedContentBytes += contentSize;
     }
 
-    const settings = this.getSettings();
+    const settings = this.getSettings(resource);
     while (this.baseContents.size > settings.cacheSize || this.cachedContentBytes > settings.maxCacheSizeBytes) {
       const oldestKey = this.baseContents.keys().next().value;
       if (oldestKey === undefined) {

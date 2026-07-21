@@ -28,7 +28,7 @@ export class LocalBaseQuickDiff implements vscode.Disposable {
       "SVN Atlas",
       vscode.workspace.workspaceFolders?.[0]?.uri,
     );
-    this.provider = new BaseContentProvider(svn, () => this.getSettings(), output);
+    this.provider = new BaseContentProvider(svn, (resource) => this.getSettings(resource), output);
     this.sourceControl.inputBox.enabled = false;
     this.sourceControl.inputBox.visible = false;
     this.sourceControl.quickDiffProvider = {
@@ -142,8 +142,8 @@ export class LocalBaseQuickDiff implements vscode.Disposable {
     return vscode.workspace.getConfiguration("svnAtlas", resource).get<boolean>("quickDiff.enabled", true);
   }
 
-  private getSettings(): QuickDiffSettings {
-    const configuration = vscode.workspace.getConfiguration("svnAtlas");
+  private getSettings(resource: vscode.Uri): QuickDiffSettings {
+    const configuration = vscode.workspace.getConfiguration("svnAtlas", resource);
     const cacheSize = configuration.get<number>("quickDiff.cacheSize", 128);
     const maxCacheSizeMB = configuration.get<number>("quickDiff.maxCacheSizeMB", 64);
     const maxFileSizeMB = configuration.get<number>("quickDiff.maxFileSizeMB", 16);
