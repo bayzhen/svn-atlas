@@ -17,7 +17,7 @@ interface RootCacheEntry {
  * rather than to the size of the entire SVN checkout.
  */
 export class LocalBaseQuickDiff implements vscode.Disposable {
-  private readonly sourceControl = vscode.scm.createSourceControl("svn-atlas", "SVN Atlas");
+  private readonly sourceControl: vscode.SourceControl;
   private readonly provider: BaseContentProvider;
   private readonly rootCache = new Map<string, RootCacheEntry>();
   private readonly workingCopyWatchers = new Map<string, vscode.Disposable>();
@@ -27,6 +27,14 @@ export class LocalBaseQuickDiff implements vscode.Disposable {
     private readonly svn: SvnClient,
     private readonly output: vscode.OutputChannel,
   ) {
+    // VS Code selects Quick Diff providers by their SCM root. A provider with
+    // no root is not considered for file resources, even if it is active.
+    // The first workspace folder is the safe, local-only scope for v0.1.
+    this.sourceControl = vscode.scm.createSourceControl(
+      "svn-atlas",
+      "SVN Atlas",
+      vscode.workspace.workspaceFolders?.[0]?.uri,
+    );
     this.provider = new BaseContentProvider(svn, () => this.getSettings(), output);
     this.sourceControl.inputBox.enabled = false;
     this.sourceControl.inputBox.visible = false;
