@@ -46,8 +46,11 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     vscode.languages.registerHoverProvider({ scheme: "file" }, {
-      provideHover: async (document, position) => {
+      provideHover: async (document, position, token) => {
         if (!(await baseBlame.isWorkingCopy(document.uri))) {
+          return undefined;
+        }
+        if (token.isCancellationRequested) {
           return undefined;
         }
 
@@ -55,7 +58,10 @@ export function activate(context: vscode.ExtensionContext): void {
           return new vscode.Hover("Save local edits before requesting BASE blame for this line.");
         }
 
-        const blame = await baseBlame.getHoverInfo(document, position.line);
+        const blame = await baseBlame.getHoverInfo(document, position.line, token);
+        if (token.isCancellationRequested) {
+          return undefined;
+        }
         if (!blame) {
           return undefined;
         }

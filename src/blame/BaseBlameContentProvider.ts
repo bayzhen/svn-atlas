@@ -80,8 +80,15 @@ export class BaseBlameContentProvider implements vscode.TextDocumentContentProvi
     return true;
   }
 
-  public async getHoverInfo(document: vscode.TextDocument, line: number): Promise<BaseBlameHoverInfo | undefined> {
+  public async getHoverInfo(
+    document: vscode.TextDocument,
+    line: number,
+    token: vscode.CancellationToken,
+  ): Promise<BaseBlameHoverInfo | undefined> {
     if (!(await this.isWorkingCopy(document.uri)) || document.isDirty) {
+      return undefined;
+    }
+    if (token.isCancellationRequested) {
       return undefined;
     }
 
@@ -90,7 +97,7 @@ export class BaseBlameContentProvider implements vscode.TextDocumentContentProvi
         this.load(document.uri),
         this.getBaseLineNumber(document, line + 1),
       ]);
-      if (baseLineNumber === undefined) {
+      if (token.isCancellationRequested || baseLineNumber === undefined) {
         return undefined;
       }
 
