@@ -1,0 +1,89 @@
+{
+  "name": "svn-atlas",
+  "displayName": "SVN Atlas",
+  "description": "A fast, local-first Subversion workspace for Visual Studio Code.",
+  "version": "0.1.0",
+  "publisher": "bayzhen",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bayzhen/svn-atlas.git"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "SCM Providers"
+  ],
+  "keywords": [
+    "svn",
+    "subversion",
+    "source-control",
+    "quick-diff"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "svnAtlas.refreshLocalBase",
+        "title": "SVN Atlas: Refresh Local Base"
+      },
+      {
+        "command": "svnAtlas.showOutput",
+        "title": "SVN Atlas: Show Output"
+      }
+    ],
+    "configuration": {
+      "title": "SVN Atlas",
+      "properties": {
+        "svnAtlas.executablePath": {
+          "type": "string",
+          "default": "svn",
+          "scope": "window",
+          "description": "Path to the Subversion command-line executable."
+        },
+        "svnAtlas.quickDiff.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Show local working-copy changes in the editor gutter."
+        },
+        "svnAtlas.quickDiff.cacheSize": {
+          "type": "number",
+          "default": 32,
+          "minimum": 1,
+          "maximum": 256,
+          "scope": "resource",
+          "description": "Maximum number of local BASE file contents cached for Quick Diff."
+        },
+        "svnAtlas.quickDiff.maxFileSizeMB": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0,
+          "maximum": 100,
+          "scope": "resource",
+          "description": "Skip Quick Diff for files larger than this many MB. Set to 0 to disable the limit."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p .",
+    "check": "tsc -p . --noEmit",
+    "watch": "tsc -p . --watch"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "@types/vscode": "^1.95.0",
+    "typescript": "^5.7.3"
+  }
+}
