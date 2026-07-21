@@ -39,6 +39,7 @@ export class BaseBlameContentProvider implements vscode.TextDocumentContentProvi
   private readonly documents = new Map<string, BaseBlameDocument>();
   private readonly diffs = new Map<string, CachedDiff>();
   private readonly pendingLoads = new Map<string, Promise<BaseBlameDocument>>();
+  private readonly pendingDiffs = new Map<string, Promise<CachedDiff>>();
   private readonly knownResources = new Map<string, vscode.Uri>();
   private readonly workingCopyRoots = new Map<string, string>();
   private readonly registration: vscode.Disposable;
@@ -114,6 +115,7 @@ export class BaseBlameContentProvider implements vscode.TextDocumentContentProvi
   public clear(): void {
     this.documents.clear();
     this.diffs.clear();
+    this.pendingDiffs.clear();
     for (const uri of this.knownResources.keys()) {
       this.changeEmitter.fire(vscode.Uri.parse(uri));
     }
@@ -125,6 +127,7 @@ export class BaseBlameContentProvider implements vscode.TextDocumentContentProvi
     this.documents.clear();
     this.diffs.clear();
     this.pendingLoads.clear();
+    this.pendingDiffs.clear();
     this.knownResources.clear();
     this.workingCopyRoots.clear();
   }
@@ -177,10 +180,7 @@ export class BaseBlameContentProvider implements vscode.TextDocumentContentProvi
     let diff = this.diffs.get(cacheKey);
     if (!diff || diff.documentVersion !== document.version) {
       try {
-        diff = {
-          documentVersion: document.version,
-          content: await this.svn.readBaseDiff(document.uri),
-        };
+        diff = await this.loadDiff(document);
         this.diffs.set(cacheKey, diff);
       } catch (error) {
         this.output.appendLine(`Unable to map BASE blame for ${document.uri.fsPath}: ${formatError(error)}`);
@@ -189,6 +189,23 @@ export class BaseBlameContentProvider implements vscode.TextDocumentContentProvi
     }
 
     return mapWorkingLineToBaseLine(diff.content, workingLineNumber);
+  }
+
+  private async loadDiff(document: vscode.TextDocument): Promise<CachedDiff> {
+    const cacheKey = document.uri.toString();
+    const pending = this.pendingDiffs.get(cacheKey);
+    if (pending) {
+      return pending;
+    }
+
+    const documentVersion = document.version;
+    const load = this.svn.readBaseDiff(document.uri).then((content) => ({ documentVersion, content }));
+    this.pendingDiffs.set(cacheKey, load);
+    try {
+      return await load;
+    } finally {
+      this.pendingDiffs.delete(cacheKey);
+    }
   }
 }
 
