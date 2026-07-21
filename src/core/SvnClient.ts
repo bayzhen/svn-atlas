@@ -15,11 +15,11 @@ export class SvnCommandError extends Error {
   }
 }
 /**
- * A deliberately small, local-only SVN command boundary.
+ * A deliberately small SVN command boundary.
  *
- * The initial Atlas feature set never calls status -u, log, or any other
- * command that needs the repository server. Both commands below are served
- * from the working copy metadata and pristine text base.
+ * Local BASE reads are served from the working-copy metadata and pristine
+ * text base. BASE blame intentionally targets the checked-out revision, but
+ * Subversion can contact the repository to reconstruct line history.
  */
 export class SvnClient {
   public constructor(private readonly getExecutablePath: () => string) {}
@@ -36,6 +36,16 @@ export class SvnClient {
 
   public async readBase(resource: vscode.Uri): Promise<string> {
     const output = await this.run(["cat", "-r", "BASE", "--", resource.fsPath]);
+    return output.toString("utf8");
+  }
+
+  public async readBaseBlame(resource: vscode.Uri): Promise<string> {
+    const output = await this.run(["blame", "--xml", "-r", "BASE", "--", resource.fsPath]);
+    return output.toString("utf8");
+  }
+
+  public async readBaseDiff(resource: vscode.Uri): Promise<string> {
+    const output = await this.run(["diff", "--internal-diff", "--ignore-properties", "-r", "BASE", "--", resource.fsPath]);
     return output.toString("utf8");
   }
 

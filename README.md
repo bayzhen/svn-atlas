@@ -8,9 +8,13 @@ The first release deliberately focuses on one thing: showing local SVN changes i
 
 - Compares an open file's `WORKING` content with its local SVN `BASE`.
 - Uses `svn cat -r BASE`, so normal gutter refreshes do not compare against remote `HEAD`.
-- Does not execute recursive `svn status`, `svn status -u`, history, blame, or remote polling.
+- Gutter rendering does not execute recursive `svn status`, `svn status -u`, history, blame, or remote polling.
 - Caches only a bounded set of open-file base contents.
 - Watches the working-copy database and refreshes open files after an SVN update. `SVN Atlas: Refresh Local Base` is available as a manual fallback.
+
+## BASE blame
+
+Hover over a saved local file to see the BASE revision, author, and date for that line. The first hover for a file reads its BASE blame and local diff; subsequent hovers reuse the in-memory cache. Run `SVN Atlas: Open BASE Blame` only when you want the full annotated document. BASE blame does not inspect the working copy's uncommitted content or query `HEAD`, but Subversion may contact the repository to reconstruct per-line history.
 
 The usual VS Code source-control decoration settings control visibility:
 
